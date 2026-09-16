@@ -1,0 +1,569 @@
+
+
+1. Application Load Balancer (ALB)
+
+Layer: 7 — Application layer
+Protocols: HTTP / HTTPS
+
+ALB understands HTTP requests, so it can make decisions based on:
+
+Host
+
+Path
+
+HTTP headers
+
+Query string
+
+HTTP method
+
+
+Common use cases
+
+Web applications
+
+REST APIs
+
+Microservices
+
+Path-based routing
+
+Host-based routing
+
+
+Example:
+
+Client
+   ↓
+ALB :443
+   ├── /api/*     → API Target Group
+   ├── /images/*  → Image Target Group
+   └── /          → Web Target Group
+
+
+---
+
+2. Network Load Balancer (NLB)
+
+Layer: 4 — Transport layer
+
+Protocols:
+
+TCP
+
+UDP
+
+TLS
+
+
+NLB does not make routing decisions based on HTTP paths like /api.
+
+Common use cases
+
+TCP applications
+
+UDP applications
+
+Very high-performance/low-latency workloads
+
+Applications requiring static IP addresses
+
+Custom network protocols
+
+
+Example:
+
+Client
+   ↓
+NLB :9000
+   ↓
+Target Group :9000
+   ├── EC2-1
+   └── EC2-2
+
+
+---
+
+3. ALB vs NLB — Must Know
+
+Feature	ALB	NLB
+
+Layer	L7	L4
+HTTP/HTTPS	✅	✅*
+TCP	❌	✅
+UDP	❌	✅
+Path routing	✅	❌
+Host routing	✅	❌
+HTTP headers	✅	❌
+Static IP	❌	✅
+Microservices	✅	Possible
+Custom TCP/UDP apps	❌	✅
+
+
+*NLB can pass TLS/HTTP traffic at the network/transport level, but it doesn't provide ALB-style HTTP-aware routing.
+
+🧠 Exam trick
+
+Don't think:
+
+> "HTTP = ALB, TCP = NLB"
+
+
+
+Think:
+
+> Does the load balancer need to understand HTTP/application information?
+
+
+
+If yes → ALB
+
+If it's simply transporting TCP/UDP/TLS traffic → NLB
+
+
+---
+
+4. Target Group
+
+A Target Group is basically:
+
+> "Where should the load balancer send the traffic?"
+
+
+
+It contains:
+
+Targets
+
+Port
+
+Protocol
+
+Health check configuration
+
+
+Targets can include:
+
+EC2 instances
+
+IP addresses
+
+Lambda functions — mainly with ALB
+
+
+Example:
+
+ALB
+ ↓
+Listener :443
+ ↓
+Rule: /api/*
+ ↓
+API Target Group
+ ↓
+EC2-1
+EC2-2
+EC2-3
+
+Health checks
+
+ALB example:
+
+Protocol: HTTP
+Port: 80
+Path: /
+
+NLB example:
+
+Protocol: TCP
+Port: 9000
+
+Unhealthy targets don't receive normal traffic.
+
+
+---
+
+5. Auto Scaling Group (ASG)
+
+ASG manages EC2 capacity.
+
+It can:
+
+Launch instances
+
+Terminate instances
+
+Replace failed instances
+
+Scale out
+
+Scale in
+
+Maintain desired capacity
+
+
+Example:
+
+Desired = 2
+Minimum = 2
+Maximum = 5
+
+If one EC2 dies:
+
+2 EC2
+ ↓
+1 EC2
+ ↓
+ASG detects capacity < desired
+ ↓
+Launch replacement
+ ↓
+2 EC2 again
+
+Important distinction
+
+ALB: distributes traffic
+Target Group: identifies/health-checks targets
+ASG: manages EC2 capacity
+
+
+---
+
+6. ALB + ASG
+
+This is one of the most important SAA architectures:
+
+Route 53
+                ↓
+               ALB
+                ↓
+          Target Group
+          ↙           ↘
+       EC2             EC2
+          ↖           ↗
+              ASG
+
+When ASG launches a new EC2:
+
+EC2 automatically registers with the Target Group when the ASG is configured with it.
+
+When an instance is terminated:
+
+ASG launches a replacement.
+
+
+---
+
+7. Route 53
+
+Amazon Route 53 is AWS's highly available DNS service.
+
+Its basic job:
+
+www.example.com
+       ↓
+   Route 53
+       ↓
+      ALB
+
+Important routing policies
+
+Policy	Main purpose
+
+Simple	Basic DNS
+Weighted	Percentage/weight distribution
+Latency	Lowest-latency endpoint
+Failover	Primary → Secondary
+Geolocation	Based on user's location
+Geoproximity	Based on geographic distance + bias
+Multivalue	Multiple healthy IPs
+
+
+
+---
+
+8. Route 53 Exam Scenarios
+
+90% → ALB-A
+
+10% → ALB-B
+
+→ Weighted routing
+
+Useful for:
+
+Blue/Green
+Canary
+Gradual migration
+A/B traffic distribution
+
+
+---
+
+User should go to the AWS Region with lowest latency
+
+→ Latency-based routing
+
+
+---
+
+Primary region fails → send traffic to secondary
+
+→ Failover routing
+
+
+---
+
+Indian users → India endpoint
+
+US users → US endpoint
+
+→ Geolocation routing
+
+
+---
+
+🧪 Day 4 Practical Labs
+
+You've already completed these, so keep this as your revision checklist.
+
+Lab 1 — ALB
+
+Client
+ ↓
+ALB :80
+ ↓
+Target Group
+ ↓
+EC2-1 / EC2-2
+
+Practiced:
+
+ALB creation
+
+Listener
+
+Target Group
+
+Security Groups
+
+Health checks
+
+Unhealthy target behavior
+
+
+
+---
+
+Lab 2 — NLB
+
+Client
+ ↓
+NLB :9000
+ ↓
+TCP Target Group
+ ↓
+EC2-1 / EC2-2
+
+Practiced:
+
+TCP listener
+
+TCP Target Group
+
+NLB DNS
+
+nc testing
+
+TCP health checks
+
+
+
+---
+
+Lab 3 — ASG
+
+ALB
+ ↓
+Target Group
+ ↓
+ASG
+ ↓
+EC2 EC2
+
+Practiced:
+
+Launch Template
+
+Desired capacity
+
+Min/Max capacity
+
+Automatic registration
+
+Scale-out
+
+Scale-in
+
+
+
+---
+
+Lab 4 — ASG Self-Healing
+
+EC2 terminated
+       ↓
+ASG detects failure
+       ↓
+Replacement EC2
+       ↓
+Target Group
+       ↓
+Health check
+       ↓
+ALB sends traffic
+
+Very important SAA concept.
+
+
+---
+
+Lab 5 — Route 53
+
+User
+ ↓
+Route 53
+ ↓
+ALB
+ ↓
+Target Group
+ ↓
+ASG
+ ↓
+EC2
+
+Practiced:
+
+Hosted Zone
+
+A record
+
+Alias record
+
+ALB as DNS target
+
+Routing policies concept
+
+
+
+---
+
+🧠 Day 4 Exam Tricks
+
+Trick 1
+
+URL/path-based routing?
+
+→ ALB
+
+
+---
+
+Trick 2
+
+TCP/UDP application?
+
+→ NLB
+
+
+---
+
+Trick 3
+
+Need static IP for load balancer?
+
+→ NLB
+
+
+---
+
+Trick 4
+
+Automatically replace failed EC2?
+
+→ ASG
+
+Not ALB.
+
+
+---
+
+Trick 5
+
+Distribute traffic among healthy EC2s?
+
+→ Load Balancer + Target Group
+
+
+---
+
+Trick 6
+
+90/10 traffic split?
+
+→ Route 53 Weighted
+
+
+---
+
+Trick 7
+
+Lowest network latency?
+
+→ Route 53 Latency
+
+
+---
+
+Trick 8
+
+Primary/secondary disaster recovery?
+
+→ Route 53 Failover
+
+
+---
+
+Trick 9
+
+New EC2 launched by ASG should automatically receive traffic?
+
+→ Attach ASG to Target Group.
+
+
+---
+
+Trick 10 — Architecture question
+
+When you see:
+
+> Highly available web application + multiple EC2 + automatic scaling
+
+
+
+Think:
+
+Route 53 → ALB → Target Group → ASG → EC2
+
+
+---
+
+🔥 One-line memory map
+
+Route 53 = WHERE?
+ALB       = WHICH HTTP REQUEST?
+NLB       = WHICH NETWORK CONNECTION?
+Target TG = WHICH HEALTHY TARGET?
+ASG       = HOW MANY EC2?
+
+Now we're ready for the Day 4 SAA scenario questions. I'll give them one at a time, just like Day 3.
